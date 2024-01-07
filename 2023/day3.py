@@ -1,4 +1,5 @@
 import re
+import numpy
 
 
 def is_integer(n):
@@ -13,13 +14,10 @@ def is_integer(n):
 def find_symbol(riddle):
     dot_comp = re.compile('[^.]')
     finder = dot_comp.findall(riddle)
-    symbol_list = []
     for item in finder:
         if item != '\n':
             if not is_integer(item):
                 return True
-                # symbol_list.append(item)
-    # return symbol_list
 
 
 def find_coordinates_of_symbols(puzzle):
@@ -29,71 +27,115 @@ def find_coordinates_of_symbols(puzzle):
         character_number = 0
         for character in lines:
             if find_symbol(character):
-                # print(str(line_number) + ',' + str(character_number))
                 symbol_array.append(f'{line_number}, {character_number}')
             character_number += 1
         line_number += 1
     return symbol_array
 
 
-def get_numbers_by_coordinates(puzzle):
-    number = False
-    numbers = []
-    line_number = 0
-    numbers_index = 0
-    for lines in puzzle.split('\n'):
-        character_number = 0
-        for character in lines:
-            dot_comp = re.compile('[0-9]')
-            finder = dot_comp.findall(character)
-            if len(finder) > 0:
-                try:
-                    numbers[numbers_index - 1] = numbers[numbers_index - 1] + character
-                    number = True
-
-                except IndexError:
-                    number = False
-                    # ignore
-
-                try:
-                    if number:
-                        numbers[numbers_index - 2] = numbers[numbers_index - 2] + character
-
-                except IndexError:
-                    number = False
-                    # ignore
-
-                numbers[numbers_index] = (f'{line_number},{character_number}:{character}')
-                number = True
-            else:
-                number = False
-            numbers_index += 1
-            character_number += 1
-    return numbers
+def num_coord_finder(puzzle):
+    comp = re.compile('\d{1,3}')
+    finder = comp.finditer(puzzle)
+    return finder
 
 
-def num_coord_finder_test(puzzle):
-    two_digit_comp = re.compile('\d{2,3}')
-    # three_digit_comp = re.compile('\d\d\d')
-    two_digit_finder = two_digit_comp.finditer(puzzle)
-    # three_digit_finder = three_digit_comp.search(puzzle)
-    return two_digit_finder  # , three_digit_finder
+def symbol_coord_finder(puzzle):
+    digit_comp = re.compile('\W')
+    digit_finder = digit_comp.finditer(puzzle)
+    return digit_finder
 
 
-#with open('fixtures/buccaneer/3.txt') as file:
-#    puzzle_input = file.read()
-#    print(get_numbers_by_coordinates(puzzle_input))
+def match_array(line, column, number_array, old_match):
+    if line >= 0:
+        if column >= 0:
+            if number_array[line][column] > 0:
+                match = number_array[line][column]
+                if match != old_match:
+                    return match
 
-with open('fixtures/kilenias/3.txt', 'r') as file:
-    puzzle_input = file.read()
-    # print(find_coordinates_of_symbols(puzzle_input_kilenias))
+    return 0
+
+
+def get_number_array(puzzle_input):
     line_num = 0
-    number_dict = {}
+    number_array = numpy.zeros([140, 140], dtype=int)
     for line in puzzle_input.split('\n'):
-
-        # print(line)
-        for i in num_coord_finder_test(line):
-            number_dict[f'{line_num} {i.span()}'] = i.group()
-            # print(i)
+        for i in num_coord_finder(line):
+            j = i.start()
+            while j < i.end():
+                number_array[line_num][j] = i.group()
+                j += 1
         line_num += 1
-    print(number_dict)
+
+    return number_array
+
+
+def solution_part_1(puzzle_input):
+    result = 0
+    number_array = get_number_array(puzzle_input)
+
+    line_num = 0
+    for line in puzzle_input.split('\n'):
+        for i in symbol_coord_finder(line):
+            if i.group() != '.':
+                old_match = 0
+                for lines in {line_num - 1, line_num, line_num + 1}:
+                    for columns in {i.start() - 1, i.start(), i.start() + 1}:
+                        if lines == line_num and columns == i.start():
+                            continue
+                        else:
+                            match = match_array(lines, columns, number_array, old_match)
+                            if match > 0:
+                                old_match = match
+                                result += match
+
+        line_num += 1
+
+    return result
+
+
+def solution_part_2(puzzle_input):
+    result = 0
+    number_array = get_number_array(puzzle_input)
+
+    line_num = 0
+    for line in puzzle_input.split('\n'):
+        for i in symbol_coord_finder(line):
+            if i.group() == '*':
+                old_match = 0
+                match_dict = {}
+                counter = 0
+                for lines in {line_num - 1, line_num, line_num + 1}:
+                    for columns in {i.start() - 1, i.start(), i.start() + 1}:
+                        if lines == line_num and columns == i.start():
+                            continue
+                        else:
+                            match = match_array(lines, columns, number_array, old_match)
+                            if match > 0:
+                                old_match = match
+                                match_dict[counter] = match
+                                counter += 1
+
+                if counter == 2:
+                    result += match_dict[0] * match_dict[1]
+
+        line_num += 1
+
+    return result
+
+
+print('\n--- Part One ---\n')
+
+with open('fixtures/kilenias/3.txt') as file:
+    print(f"Kilenias: {solution_part_1(file.read())}")
+
+with open('fixtures/buccaneer/3.txt') as file:
+    print('Buccaneer: ' + str(solution_part_1(file.read())))
+
+print('\n--- Part Two ---\n')
+
+with open('fixtures/kilenias/3.txt') as file:
+    print(f"Kilenias: {solution_part_2(file.read())}")
+
+with open('fixtures/buccaneer/3.txt') as file:
+    print('Buccaneer: ' + str(solution_part_2(file.read())))
